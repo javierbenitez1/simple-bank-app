@@ -13,7 +13,7 @@ account_service = AccountService(account_repository, user_repository, transactio
 
 
 def reset_data():
-    """Clears all in-memory data. Used by the tests."""
-    user_repository.clear()
-    account_repository.clear()
+    """Clears all data. Used by the tests. Order matters because of foreign keys."""
     transaction_repository.clear()
+    account_repository.clear()
+    user_repository.clear()

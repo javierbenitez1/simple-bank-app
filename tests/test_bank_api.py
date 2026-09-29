@@ -1,3 +1,6 @@
+import os
+os.environ["DB_NAME"] = "simple_bank_test"
+
 import pytest
 from fastapi.testclient import TestClient
 

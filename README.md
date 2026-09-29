@@ -1,23 +1,26 @@
-# Simple Bank Application: Backend REST API (No Database)
+# Simple Bank Application: Backend REST API with MySQL
 
-Stage 1 of the Simple Bank Application project. A REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. Data is stored in memory for this stage, so it resets when the server restarts.
+Stage 2 of the Simple Bank Application project. A REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. Data is stored in a MySQL database.
 
 ## Architecture
 
 Follows MVC with a layered design:
 
 ```
-Controller (REST API) → Service (business logic) → Repository (data access) → In-memory storage
+Controller (REST API) → Service (business logic) → Repository (data access) → MySQL
 ```
 
 ```
 app/
 ├── controllers/    # REST endpoints
 ├── services/       # Business rules
-├── repositories/   # Data storage (swapped for MySQL in Stage 2)
+├── repositories/   # SQL queries against MySQL
 ├── models/         # Entities and request/response schemas
+├── database.py     # MySQL connection handling
 ├── dependencies.py # Wires layers together
 └── main.py         # App entry point and error handling
+sql/
+└── schema.sql      # Creates the users, accounts, and transactions tables
 ```
 
 ## Business Rules
@@ -25,8 +28,44 @@ app/
 - Cannot withdraw more than the current balance
 - Deposit and withdrawal amounts must be positive
 - Every successful deposit and withdrawal is recorded as a transaction
+- Rules are enforced in the service layer and backed by database constraints
 
-## Run It
+## Setup
+
+**1. Install MySQL and create the databases**
+
+```bash
+brew install mysql
+brew services start mysql
+mysql -u root
+```
+
+```sql
+CREATE DATABASE simple_bank;
+CREATE DATABASE simple_bank_test;
+CREATE USER 'bank_user'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON simple_bank.* TO 'bank_user'@'localhost';
+GRANT ALL PRIVILEGES ON simple_bank_test.* TO 'bank_user'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+**2. Create the tables**
+
+```bash
+mysql -u bank_user -p simple_bank < sql/schema.sql
+mysql -u bank_user -p simple_bank_test < sql/schema.sql
+```
+
+**3. Configure the connection**
+
+```bash
+cp .env.example .env
+```
+
+Then fill in your MySQL username and password in `.env`.
+
+**4. Run the app**
 
 ```bash
 python3 -m venv .venv
@@ -35,7 +74,7 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Then open http://127.0.0.1:8000/docs to try the endpoints.
+Open http://127.0.0.1:8000/docs to try the endpoints.
 
 ## Endpoints
 
@@ -60,13 +99,15 @@ curl -X POST http://127.0.0.1:8000/api/accounts \
 ```json
 {
   "accountId": 1,
-  "userName": "Javier Benitez",
+  "userName": "Javi Benitez",
   "accountType": "SAVINGS",
   "balance": 0.0
 }
 ```
 
 ## Tests
+
+Tests run against the separate `simple_bank_test` database, so your real data is never touched.
 
 ```bash
 pytest -v

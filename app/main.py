@@ -6,7 +6,7 @@ from app.services.exceptions import BusinessRuleError, ConflictError, NotFoundEr
 
 app = FastAPI(
     title="Simple Bank API",
-    description="Simple banking REST API with in-memory storage (no database).",
+    description="Simple banking REST API backed by a MySQL database.",
     version="1.0.0",
 )
 
