@@ -1,3 +1,6 @@
+import os
+os.environ["MONGODB_DB_NAME"] = "simple_bank_test"
+
 import pytest
 from fastapi.testclient import TestClient
 
