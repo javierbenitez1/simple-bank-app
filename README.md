@@ -1,41 +1,40 @@
-# Simple Bank Application: Backend REST API (No Database)
+# Simple Bank Application
 
-Stage 1 of the Simple Bank Application project. A REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. Data is stored in memory for this stage, so it resets when the server restarts.
+A banking REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. The project is built in stages, and each stage lives on its own branch.
 
-## Architecture
+## Project Stages
 
-Follows MVC with a layered design:
+| Stage | Branch | Storage | Description |
+|-------|--------|---------|-------------|
+| 1 | [`backend-no-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-no-db) | In-memory | REST API with MVC layers, business rules, and tests |
+| 2 | [`backend-with-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-db) | MySQL | Same API backed by a relational database, with a SQL schema script |
+| 2 | [`backend-with-mongodb`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-mongodb) | MongoDB Atlas | Same API backed by a cloud document database |
+| 3 | Coming soon | | React frontend |
+
+Each branch has its own README with setup instructions. The code on `main` matches Stage 1.
+
+## Why the Stages Matter
+
+The app uses a layered architecture:
 
 ```
-Controller (REST API) → Service (business logic) → Repository (data access) → In-memory storage
+Controller (REST API) → Service (business logic) → Repository (data access) → Storage
 ```
 
-```
-app/
-├── controllers/    # REST endpoints
-├── services/       # Business rules
-├── repositories/   # Data storage (swapped for MySQL in Stage 2)
-├── models/         # Entities and request/response schemas
-├── dependencies.py # Wires layers together
-└── main.py         # App entry point and error handling
-```
+Going from in-memory storage to MySQL to MongoDB only required rewriting the repository layer. The controllers, services, and business rules stayed exactly the same across all three versions, and the same test suite passes against each one.
+
+## Tech Stack
+
+- **Backend:** Python, FastAPI, Pydantic
+- **Databases:** MySQL, MongoDB Atlas
+- **Testing:** pytest, Postman
+- **Tools:** Git, GitHub, VS Code, Swagger UI
 
 ## Business Rules
 
 - Cannot withdraw more than the current balance
 - Deposit and withdrawal amounts must be positive
 - Every successful deposit and withdrawal is recorded as a transaction
-
-## Run It
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-Then open http://127.0.0.1:8000/docs to try the endpoints.
 
 ## Endpoints
 
@@ -49,25 +48,23 @@ Then open http://127.0.0.1:8000/docs to try the endpoints.
 | POST | `/api/accounts/{id}/withdraw` | Withdraw money |
 | GET | `/api/accounts/{id}/transactions` | View transaction history |
 
-### Example
+Interactive API docs are available at `/docs` when the server is running.
+
+## Postman Collection
+
+The [`postman`](postman/) folder has a collection with every endpoint plus error cases (insufficient funds, negative deposit, missing account). Import it into Postman, start the server, and use **Run collection** to test the whole API. It works with all three backend versions.
+
+## Quick Start (Stage 1)
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/accounts \
-  -H "Content-Type: application/json" \
-  -d '{"userId": 1, "accountType": "SAVINGS"}'
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
-```json
-{
-  "accountId": 1,
-  "userName": "Javier Benitez",
-  "accountType": "SAVINGS",
-  "balance": 0.0
-}
-```
+Then open http://127.0.0.1:8000/docs.
 
-## Tests
+## Author
 
-```bash
-pytest -v
-```
+**Javier Benitez** · [LinkedIn](https://linkedin.com/in/javi-benitez) · [GitHub](https://github.com/javierbenitez1)
