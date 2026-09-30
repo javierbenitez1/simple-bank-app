@@ -29,6 +29,9 @@ class UserRepository:
         })
         return user
 
+    def find_all(self) -> list[User]:
+        return [_to_user(doc) for doc in self.collection.find().sort("_id", 1)]
+
     def find_by_id(self, user_id: int) -> Optional[User]:
         doc = self.collection.find_one({"_id": user_id})
         return _to_user(doc) if doc else None
@@ -37,6 +40,16 @@ class UserRepository:
         pattern = f"^{re.escape(email)}$"
         doc = self.collection.find_one({"email": {"$regex": pattern, "$options": "i"}})
         return _to_user(doc) if doc else None
+
+    def update(self, user: User) -> User:
+        self.collection.update_one(
+            {"_id": user.user_id},
+            {"$set": {"name": user.name, "email": user.email}},
+        )
+        return user
+
+    def delete(self, user_id: int) -> bool:
+        return self.collection.delete_one({"_id": user_id}).deleted_count == 1
 
     def clear(self):
         self.collection.delete_many({})

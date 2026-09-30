@@ -31,3 +31,17 @@ class Transaction:
     txn_type: str
     amount: Decimal
     created_at: datetime = field(default_factory=now)
+
+@dataclass
+class AuditLog:
+    action: str                       # DEPOSIT, WITHDRAW, TRANSFER
+    status: str                       # SUCCESS or FAILED
+    amount: Decimal
+    audit_id: int | None = None
+    performed_by_user_id: int | None = None
+    performed_by_name: str | None = None
+    from_account_id: int | None = None
+    to_account_id: int | None = None
+    transaction_ids: list[int] = field(default_factory=list)
+    reason: str | None = None         # why it failed, if it failed
+    timestamp: datetime = field(default_factory=now)

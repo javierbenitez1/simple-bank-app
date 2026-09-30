@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.controllers import account_controller, user_controller
+from app.controllers import account_controller, audit_controller, user_controller
 from app.services.exceptions import BusinessRuleError, ConflictError, NotFoundError
 
 app = FastAPI(
@@ -12,6 +12,7 @@ app = FastAPI(
 
 app.include_router(user_controller.router)
 app.include_router(account_controller.router)
+app.include_router(audit_controller.router)
 
 
 @app.exception_handler(NotFoundError)
