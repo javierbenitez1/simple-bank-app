@@ -8,6 +8,7 @@ A banking REST API built with Python and FastAPI that lets users create accounts
 |-------|--------|---------|-------------|
 | 1 | [`backend-no-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-no-db) | In-memory | REST API with MVC layers, business rules, and tests |
 | 2 | [`backend-with-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-db) | MySQL | Same API backed by a relational database, with a SQL schema script |
+| 2 | [`backend-with-mongodb`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-mongodb) | MongoDB Atlas | Same API backed by a cloud document database, plus customers CRUD, transfers, premium accounts, and an audit trail |
 | 2 | [`backend-with-jwt`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-jwt) | MongoDB Atlas | MongoDB version plus JWT login, customer and admin roles, and ownership checks so customers can only access their own accounts |
 | 3 | [`frontend-react`](https://github.com/javierbenitez1/simple-bank-app/tree/frontend-react) | MongoDB Atlas | React frontend with all six screens, running on top of the MongoDB backend |
 
@@ -54,7 +55,7 @@ Interactive API docs are available at `/docs` when the server is running.
 
 ## Postman Collection
 
-The [`postman`](postman/) folder has a collection with every endpoint plus error cases (insufficient funds, negative deposit, missing account). Import it into Postman, start the server, and use **Run collection** to test the whole API. It works with all three backend versions.
+It works with the in-memory, MySQL, and MongoDB versions. The JWT branch has its own collection that logs in first.
 
 ## Quick Start (Stage 1)
 
