@@ -101,3 +101,41 @@ Tests run against a separate `simple_bank_test` database, so real data is never 
 ```bash
 pytest -v
 ```
+
+## Frontend (React)
+
+A React app in the `frontend` folder that covers every screen from the project spec: Home, Create Account, Account Details, Deposit, Withdraw, and Transaction History. It talks to the FastAPI backend and shows validation messages on the UI (like insufficient funds or invalid amounts) before and after calling the API.
+
+**Tech:** React, Vite, React Router
+
+### Running the full stack
+
+You need two terminals.
+
+**Terminal 1, backend:**
+
+```bash
+source .venv/bin/activate
+uvicorn app.main:app --reload
+```
+
+**Terminal 2, frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open http://localhost:5173.
+
+### Screens
+
+| Screen | Route | What it does |
+|--------|-------|--------------|
+| Home | `/` | Create a new account or look one up by ID |
+| Create Account | `/create` | Name, email, and account type. Using an existing email opens another account for that customer |
+| Account Details | `/accounts/:id` | Account ID, holder name, type, and balance |
+| Deposit | `/accounts/:id/deposit` | Add money with validation |
+| Withdraw | `/accounts/:id/withdraw` | Take out money, blocked if it would overdraw |
+| Transaction History | `/accounts/:id/transactions` | Table of every transaction with type, amount, and date |

@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.controllers import account_controller, audit_controller, user_controller
@@ -8,6 +9,14 @@ app = FastAPI(
     title="Simple Bank API",
     description="Simple banking REST API backed by MongoDB Atlas.",
     version="1.0.0",
+)
+
+# Let the React app (running on port 5173) call this API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(user_controller.router)
