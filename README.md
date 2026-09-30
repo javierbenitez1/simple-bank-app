@@ -8,8 +8,8 @@ A banking REST API built with Python and FastAPI that lets users create accounts
 |-------|--------|---------|-------------|
 | 1 | [`backend-no-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-no-db) | In-memory | REST API with MVC layers, business rules, and tests |
 | 2 | [`backend-with-db`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-db) | MySQL | Same API backed by a relational database, with a SQL schema script |
-| 2 | [`backend-with-mongodb`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-mongodb) | MongoDB Atlas | Same API backed by a cloud document database |
-| 3 | Coming soon | | React frontend |
+| 2 | [`backend-with-mongodb`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-mongodb) | MongoDB Atlas | Same API backed by a cloud document database, plus customers CRUD, transfers, premium accounts, and an audit trail |
+| 3 | [`frontend-react`](https://github.com/javierbenitez1/simple-bank-app/tree/frontend-react) | MongoDB Atlas | React frontend with all six screens, running on top of the MongoDB backend |
 
 Each branch has its own README with setup instructions. The code on `main` matches Stage 1.
 
@@ -26,6 +26,7 @@ Going from in-memory storage to MySQL to MongoDB only required rewriting the rep
 ## Tech Stack
 
 - **Backend:** Python, FastAPI, Pydantic
+- **Frontend:** React, Vite, React Router
 - **Databases:** MySQL, MongoDB Atlas
 - **Testing:** pytest, Postman
 - **Tools:** Git, GitHub, VS Code, Swagger UI
