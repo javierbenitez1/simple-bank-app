@@ -99,7 +99,7 @@ curl -X POST http://127.0.0.1:8000/api/accounts \
 ```json
 {
   "accountId": 1,
-  "userName": "Javi Benitez",
+  "userName": "Javier Benitez",
   "accountType": "SAVINGS",
   "balance": 0.0
 }
