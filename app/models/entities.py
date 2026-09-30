@@ -13,6 +13,8 @@ class User:
     name: str
     email: str
     created_at: datetime = field(default_factory=now)
+    password_hash: str | None = None
+    role: str = "CUSTOMER"
 
 
 @dataclass

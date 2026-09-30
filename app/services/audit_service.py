@@ -28,21 +28,22 @@ class AuditService:
         to_account_id: int | None = None,
         transaction_ids: list[int] | None = None,
         reason: str | None = None,
+        actor_id: int | None = None,
     ) -> AuditLog:
-        """Records who did what, when, to which accounts, and whether it worked."""
-        user_id, user_name = None, None
-        account = self.account_repo.find_by_id(initiator_account_id)
-        if account:
-            user = self.user_repo.find_by_id(account.user_id)
-            user_id = account.user_id
-            user_name = user.name if user else None
+        """Records who did what, when, to which accounts, and whether it worked.
+        'Who' is the logged-in user. If there isn't one, it falls back to the account owner."""
+        user = self.user_repo.find_by_id(actor_id) if actor_id is not None else None
+        if user is None:
+            account = self.account_repo.find_by_id(initiator_account_id)
+            if account:
+                user = self.user_repo.find_by_id(account.user_id)
 
         return self.audit_repo.save(AuditLog(
             action=action,
             status=status,
             amount=amount,
-            performed_by_user_id=user_id,
-            performed_by_name=user_name,
+            performed_by_user_id=user.user_id if user else None,
+            performed_by_name=user.name if user else None,
             from_account_id=from_account_id,
             to_account_id=to_account_id,
             transaction_ids=transaction_ids or [],

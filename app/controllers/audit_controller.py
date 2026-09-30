@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
+
+from app.auth_dependencies import require_admin
 
 from app.dependencies import audit_service
 from app.models.schemas import AuditLogResponse
 
-router = APIRouter(prefix="/api/audit", tags=["Audit"])
+router = APIRouter(prefix="/api/audit", tags=["Audit"], dependencies=[Depends(require_admin)])
 
 
 def to_audit_response(log) -> AuditLogResponse:

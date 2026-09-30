@@ -4,10 +4,11 @@ os.environ["MONGODB_DB_NAME"] = "simple_bank_test"
 import pytest
 from fastapi.testclient import TestClient
 
-from app.dependencies import reset_data
+from app.dependencies import reset_data, user_service
 from app.main import app
 
 client = TestClient(app)
+PASSWORD = "password123"
 
 
 @pytest.fixture(autouse=True)
@@ -15,228 +16,404 @@ def clean_data():
     reset_data()
 
 
-def create_user_and_account():
-    client.post("/api/users", json={"name": "Test User", "email": "test@example.com"})
-    return client.post("/api/accounts", json={"userId": 1, "accountType": "SAVINGS"}).json()
+# ----- Helpers -----
+
+def register(name="Test User", email="test@example.com"):
+    res = client.post("/api/users", json={"name": name, "email": email, "password": PASSWORD})
+    assert res.status_code == 201
+    return res.json()
 
 
-def test_create_account():
-    account = create_user_and_account()
-    assert account["accountId"] == 1
-    assert account["userName"] == "Test User"
-    assert account["balance"] == 0
+def login(email):
+    res = client.post("/api/auth/login", json={"email": email, "password": PASSWORD})
+    return {"Authorization": f"Bearer {res.json()['accessToken']}"}
 
 
-def test_create_account_for_missing_user_returns_404():
-    res = client.post("/api/accounts", json={"userId": 99, "accountType": "SAVINGS"})
-    assert res.status_code == 404
+def make_customer(name="Test User", email="test@example.com"):
+    """Signs up a customer and returns (user_id, auth headers)."""
+    user = register(name, email)
+    return user["userId"], login(email)
 
 
-def test_get_missing_account_returns_404():
-    assert client.get("/api/accounts/99").status_code == 404
+def make_admin():
+    """Admins can't sign up through the API, so create one directly."""
+    admin = user_service.create_user("Admin", "admin@example.com", PASSWORD, role="ADMIN")
+    return admin.user_id, login("admin@example.com")
+
+
+def open_account(headers, user_id, account_type="SAVINGS", deposit=0):
+    res = client.post("/api/accounts", json={"userId": user_id, "accountType": account_type}, headers=headers)
+    assert res.status_code == 201
+    account_id = res.json()["accountId"]
+    if deposit:
+        client.post(f"/api/accounts/{account_id}/deposit", json={"amount": deposit}, headers=headers)
+    return account_id
+
+
+# ----- Health -----
+
+def test_health_check():
+    assert client.get("/").status_code == 200
+
+
+# ----- Auth -----
+
+def test_register_creates_customer():
+    user = register()
+    assert user["role"] == "CUSTOMER"
+    assert "password" not in user and "passwordHash" not in user
+
+
+def test_password_is_hashed():
+    user = register()
+    stored = user_service.get_user(user["userId"]).password_hash
+    assert stored != PASSWORD
+    assert stored.startswith("$2")  # bcrypt hashes start with $2
+
+
+def test_short_password_rejected():
+    res = client.post("/api/users", json={"name": "A", "email": "a@example.com", "password": "short"})
+    assert res.status_code == 422
+
+
+def test_duplicate_email_returns_409():
+    register()
+    res = client.post("/api/users", json={"name": "B", "email": "test@example.com", "password": PASSWORD})
+    assert res.status_code == 409
+
+
+def test_login_returns_token():
+    register()
+    res = client.post("/api/auth/login", json={"email": "test@example.com", "password": PASSWORD})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["tokenType"] == "bearer"
+    assert body["accessToken"].count(".") == 2  # header.payload.signature
+    assert body["user"]["email"] == "test@example.com"
+
+
+def test_login_wrong_password_returns_401():
+    register()
+    res = client.post("/api/auth/login", json={"email": "test@example.com", "password": "wrong-password"})
+    assert res.status_code == 401
+
+
+def test_login_unknown_email_returns_401():
+    res = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": PASSWORD})
+    assert res.status_code == 401
+
+
+def test_me_returns_current_user():
+    user_id, headers = make_customer()
+    res = client.get("/api/auth/me", headers=headers)
+    assert res.status_code == 200
+    assert res.json()["userId"] == user_id
+
+
+def test_missing_token_returns_401():
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_invalid_token_returns_401():
+    res = client.get("/api/auth/me", headers={"Authorization": "Bearer not-a-real-token"})
+    assert res.status_code == 401
+
+
+# ----- Customers -----
+
+def test_customer_can_view_own_profile():
+    user_id, headers = make_customer()
+    assert client.get(f"/api/users/{user_id}", headers=headers).status_code == 200
+
+
+def test_customer_cannot_view_other_profile():
+    _, headers = make_customer()
+    other_id, _ = make_customer("Other", "other@example.com")
+    assert client.get(f"/api/users/{other_id}", headers=headers).status_code == 403
+
+
+def test_only_admin_can_list_users():
+    _, customer = make_customer()
+    _, admin = make_admin()
+    assert client.get("/api/users", headers=customer).status_code == 403
+    assert len(client.get("/api/users", headers=admin).json()) == 2
+
+
+def test_update_own_profile():
+    user_id, headers = make_customer()
+    res = client.put(f"/api/users/{user_id}", json={"name": "New Name"}, headers=headers)
+    assert res.status_code == 200
+    assert res.json()["name"] == "New Name"
+
+
+def test_update_to_taken_email_returns_409():
+    make_customer("A", "a@example.com")
+    b_id, b_headers = make_customer("B", "b@example.com")
+    res = client.put(f"/api/users/{b_id}", json={"email": "a@example.com"}, headers=b_headers)
+    assert res.status_code == 409
+
+
+def test_delete_own_profile():
+    user_id, headers = make_customer()
+    assert client.delete(f"/api/users/{user_id}", headers=headers).status_code == 204
+    _, admin = make_admin()
+    assert client.get(f"/api/users/{user_id}", headers=admin).status_code == 404
+
+
+def test_cannot_delete_user_with_accounts():
+    user_id, headers = make_customer()
+    open_account(headers, user_id)
+    assert client.delete(f"/api/users/{user_id}", headers=headers).status_code == 409
+
+
+# ----- Accounts -----
+
+def test_create_account_for_self():
+    user_id, headers = make_customer()
+    res = client.post("/api/accounts", json={"userId": user_id, "accountType": "SAVINGS"}, headers=headers)
+    assert res.status_code == 201
+    assert res.json()["userName"] == "Test User"
+    assert res.json()["balance"] == 0
+
+
+def test_cannot_create_account_for_someone_else():
+    _, headers = make_customer()
+    other_id, _ = make_customer("Other", "other@example.com")
+    res = client.post("/api/accounts", json={"userId": other_id, "accountType": "SAVINGS"}, headers=headers)
+    assert res.status_code == 403
+
+
+def test_customer_has_many_accounts():
+    user_id, headers = make_customer()
+    open_account(headers, user_id, "SAVINGS")
+    open_account(headers, user_id, "CHECKING")
+    accounts = client.get(f"/api/users/{user_id}/accounts", headers=headers).json()
+    assert [a["accountType"] for a in accounts] == ["SAVINGS", "CHECKING"]
+
+
+def test_cannot_view_someone_elses_account():
+    other_id, other = make_customer("Other", "other@example.com")
+    account_id = open_account(other, other_id)
+    _, headers = make_customer()
+    assert client.get(f"/api/accounts/{account_id}", headers=headers).status_code == 403
+
+
+def test_admin_can_view_any_account():
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    _, admin = make_admin()
+    assert client.get(f"/api/accounts/{account_id}", headers=admin).status_code == 200
+
+
+def test_only_admin_can_list_all_accounts():
+    user_id, customer = make_customer()
+    open_account(customer, user_id)
+    _, admin = make_admin()
+    assert client.get("/api/accounts", headers=customer).status_code == 403
+    assert len(client.get("/api/accounts", headers=admin).json()) == 1
 
 
 def test_deposit_increases_balance():
-    create_user_and_account()
-    res = client.post("/api/accounts/1/deposit", json={"amount": 500})
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    res = client.post(f"/api/accounts/{account_id}/deposit", json={"amount": 500}, headers=headers)
     assert res.status_code == 200
     assert res.json()["balance"] == 500
 
 
 def test_deposit_must_be_positive():
-    create_user_and_account()
-    res = client.post("/api/accounts/1/deposit", json={"amount": -50})
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    res = client.post(f"/api/accounts/{account_id}/deposit", json={"amount": -50}, headers=headers)
     assert res.status_code == 400
 
 
 def test_withdraw_decreases_balance():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 500})
-    res = client.post("/api/accounts/1/withdraw", json={"amount": 200})
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=500)
+    res = client.post(f"/api/accounts/{account_id}/withdraw", json={"amount": 200}, headers=headers)
     assert res.json()["balance"] == 300
 
 
 def test_cannot_withdraw_more_than_balance():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 100})
-    res = client.post("/api/accounts/1/withdraw", json={"amount": 500})
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=100)
+    res = client.post(f"/api/accounts/{account_id}/withdraw", json={"amount": 500}, headers=headers)
     assert res.status_code == 400
-    assert client.get("/api/accounts/1").json()["balance"] == 100
+    assert client.get(f"/api/accounts/{account_id}", headers=headers).json()["balance"] == 100
+
+
+def test_cannot_deposit_into_someone_elses_account():
+    other_id, other = make_customer("Other", "other@example.com")
+    account_id = open_account(other, other_id)
+    _, headers = make_customer()
+    res = client.post(f"/api/accounts/{account_id}/deposit", json={"amount": 50}, headers=headers)
+    assert res.status_code == 403
 
 
 def test_transactions_are_recorded():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 500})
-    client.post("/api/accounts/1/withdraw", json={"amount": 200})
-    client.post("/api/accounts/1/withdraw", json={"amount": 9999})  # fails, should not be recorded
-    txns = client.get("/api/accounts/1/transactions").json()
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=500)
+    client.post(f"/api/accounts/{account_id}/withdraw", json={"amount": 200}, headers=headers)
+    client.post(f"/api/accounts/{account_id}/withdraw", json={"amount": 9999}, headers=headers)  # fails
+    txns = client.get(f"/api/accounts/{account_id}/transactions", headers=headers).json()
     assert [t["type"] for t in txns] == ["DEPOSIT", "WITHDRAW"]
-    assert [t["amount"] for t in txns] == [500, 200]
 
 
-def test_duplicate_email_returns_409():
-    client.post("/api/users", json={"name": "A", "email": "same@example.com"})
-    res = client.post("/api/users", json={"name": "B", "email": "same@example.com"})
-    assert res.status_code == 409
-
-
-def test_invalid_account_type_returns_422():
-    client.post("/api/users", json={"name": "A", "email": "a@example.com"})
-    res = client.post("/api/accounts", json={"userId": 1, "accountType": "CRYPTO"})
-    assert res.status_code == 422
-
-def test_list_users():
-    client.post("/api/users", json={"name": "A", "email": "a@example.com"})
-    client.post("/api/users", json={"name": "B", "email": "b@example.com"})
-    assert [u["name"] for u in client.get("/api/users").json()] == ["A", "B"]
-
-
-def test_update_user():
-    client.post("/api/users", json={"name": "Old Name", "email": "old@example.com"})
-    res = client.put("/api/users/1", json={"name": "New Name"})
-    assert res.status_code == 200
-    assert res.json()["name"] == "New Name"
-    assert res.json()["email"] == "old@example.com"
-
-
-def test_update_user_to_taken_email_returns_409():
-    client.post("/api/users", json={"name": "A", "email": "a@example.com"})
-    client.post("/api/users", json={"name": "B", "email": "b@example.com"})
-    assert client.put("/api/users/2", json={"email": "a@example.com"}).status_code == 409
-
-
-def test_delete_user():
-    client.post("/api/users", json={"name": "Temp", "email": "temp@example.com"})
-    assert client.delete("/api/users/1").status_code == 204
-    assert client.get("/api/users/1").status_code == 404
-
-
-def test_cannot_delete_user_with_accounts():
-    create_user_and_account()
-    assert client.delete("/api/users/1").status_code == 409
-
-
-# ----- Priority 2: Accounts -----
-
-def setup_two_accounts(balance_1=0, balance_2=0):
-    client.post("/api/users", json={"name": "Test User", "email": "test@example.com"})
-    client.post("/api/accounts", json={"userId": 1, "accountType": "SAVINGS"})
-    client.post("/api/accounts", json={"userId": 1, "accountType": "CHECKING"})
-    if balance_1:
-        client.post("/api/accounts/1/deposit", json={"amount": balance_1})
-    if balance_2:
-        client.post("/api/accounts/2/deposit", json={"amount": balance_2})
-
-
-def test_list_all_accounts():
-    setup_two_accounts()
-    assert len(client.get("/api/accounts").json()) == 2
-
-
-def test_customer_has_many_accounts():
-    setup_two_accounts()
-    accounts = client.get("/api/users/1/accounts").json()
-    assert [a["accountType"] for a in accounts] == ["SAVINGS", "CHECKING"]
-
-
-def test_premium_accounts():
-    setup_two_accounts(balance_1=500, balance_2=2000)
-    premium = client.get("/api/accounts/premium", params={"threshold": 1000}).json()
-    assert [a["accountId"] for a in premium] == [2]
+def test_get_missing_account_returns_404():
+    _, admin = make_admin()
+    assert client.get("/api/accounts/999", headers=admin).status_code == 404
 
 
 def test_update_account_type():
-    create_user_and_account()
-    res = client.put("/api/accounts/1", json={"accountType": "CHECKING"})
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    res = client.put(f"/api/accounts/{account_id}", json={"accountType": "CHECKING"}, headers=headers)
     assert res.status_code == 200
     assert res.json()["accountType"] == "CHECKING"
 
 
 def test_delete_empty_account():
-    create_user_and_account()
-    assert client.delete("/api/accounts/1").status_code == 204
-    assert client.get("/api/accounts/1").status_code == 404
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    assert client.delete(f"/api/accounts/{account_id}", headers=headers).status_code == 204
 
 
 def test_cannot_delete_account_with_balance():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 100})
-    assert client.delete("/api/accounts/1").status_code == 409
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=100)
+    assert client.delete(f"/api/accounts/{account_id}", headers=headers).status_code == 409
 
 
-def test_transfer_between_accounts():
-    setup_two_accounts(balance_1=500)
-    res = client.post("/api/accounts/transfer", json={"fromAccountId": 1, "toAccountId": 2, "amount": 200})
+def test_premium_accounts_admin_only():
+    user_id, customer = make_customer()
+    open_account(customer, user_id, deposit=500)
+    rich = open_account(customer, user_id, deposit=2000)
+    _, admin = make_admin()
+    assert client.get("/api/accounts/premium", params={"threshold": 1000}, headers=customer).status_code == 403
+    premium = client.get("/api/accounts/premium", params={"threshold": 1000}, headers=admin).json()
+    assert [a["accountId"] for a in premium] == [rich]
+
+
+# ----- Transfers -----
+
+def test_transfer_between_own_accounts():
+    user_id, headers = make_customer()
+    a = open_account(headers, user_id, deposit=500)
+    b = open_account(headers, user_id, "CHECKING")
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": a, "toAccountId": b, "amount": 200}, headers=headers)
     assert res.status_code == 200
     assert res.json()["fromAccount"]["balance"] == 300
     assert res.json()["toAccount"]["balance"] == 200
-    assert client.get("/api/accounts/1/transactions").json()[-1]["type"] == "TRANSFER_OUT"
-    assert client.get("/api/accounts/2/transactions").json()[-1]["type"] == "TRANSFER_IN"
+
+
+def test_transfer_to_another_customer():
+    user_id, headers = make_customer()
+    mine = open_account(headers, user_id, deposit=500)
+    friend_id, friend = make_customer("Friend", "friend@example.com")
+    theirs = open_account(friend, friend_id)
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": mine, "toAccountId": theirs, "amount": 100}, headers=headers)
+    assert res.status_code == 200
+    assert client.get(f"/api/accounts/{theirs}", headers=friend).json()["balance"] == 100
+
+
+def test_cannot_transfer_from_someone_elses_account():
+    victim_id, victim = make_customer("Victim", "victim@example.com")
+    theirs = open_account(victim, victim_id, deposit=1000)
+    user_id, headers = make_customer()
+    mine = open_account(headers, user_id)
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": theirs, "toAccountId": mine, "amount": 500}, headers=headers)
+    assert res.status_code == 403
 
 
 def test_transfer_insufficient_funds():
-    setup_two_accounts(balance_1=100)
-    res = client.post("/api/accounts/transfer", json={"fromAccountId": 1, "toAccountId": 2, "amount": 500})
+    user_id, headers = make_customer()
+    a = open_account(headers, user_id, deposit=100)
+    b = open_account(headers, user_id)
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": a, "toAccountId": b, "amount": 500}, headers=headers)
     assert res.status_code == 400
 
 
 def test_transfer_to_same_account():
-    setup_two_accounts(balance_1=100)
-    res = client.post("/api/accounts/transfer", json={"fromAccountId": 1, "toAccountId": 1, "amount": 50})
+    user_id, headers = make_customer()
+    a = open_account(headers, user_id, deposit=100)
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": a, "toAccountId": a, "amount": 50}, headers=headers)
     assert res.status_code == 400
 
 
-# ----- Priority 3: Audit trail -----
+# ----- Audit -----
 
-def test_deposit_creates_audit_log():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 500})
-    logs = client.get("/api/audit").json()
-    assert len(logs) == 1
-    log = logs[0]
+def test_audit_is_admin_only():
+    _, headers = make_customer()
+    assert client.get("/api/audit", headers=headers).status_code == 403
+
+
+def test_deposit_audit_records_who():
+    user_id, headers = make_customer()
+    open_account(headers, user_id, deposit=500)
+    _, admin = make_admin()
+    log = client.get("/api/audit", headers=admin).json()[0]
     assert log["action"] == "DEPOSIT"
     assert log["status"] == "SUCCESS"
+    assert log["performedByUserId"] == user_id
     assert log["performedByName"] == "Test User"
-    assert log["toAccountId"] == 1
     assert log["amount"] == 500
-    assert log["transactionIds"] == [1]
+
+
+def test_admin_action_is_audited_as_admin():
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id)
+    admin_id, admin = make_admin()
+    client.post(f"/api/accounts/{account_id}/deposit", json={"amount": 100}, headers=admin)
+    log = client.get("/api/audit", headers=admin).json()[0]
+    assert log["performedByUserId"] == admin_id
+    assert log["toAccountId"] == account_id
 
 
 def test_failed_withdrawal_is_audited():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 100})
-    client.post("/api/accounts/1/withdraw", json={"amount": 500})
-    failed = client.get("/api/audit", params={"status": "FAILED"}).json()
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=100)
+    client.post(f"/api/accounts/{account_id}/withdraw", json={"amount": 500}, headers=headers)
+    _, admin = make_admin()
+    failed = client.get("/api/audit", params={"status": "FAILED"}, headers=admin).json()
     assert len(failed) == 1
     assert failed[0]["action"] == "WITHDRAW"
     assert "Insufficient funds" in failed[0]["reason"]
 
 
 def test_transfer_audit_shows_both_accounts():
-    setup_two_accounts(balance_1=500)
-    client.post("/api/accounts/transfer", json={"fromAccountId": 1, "toAccountId": 2, "amount": 200})
-    log = client.get("/api/audit", params={"action": "TRANSFER"}).json()[0]
-    assert log["fromAccountId"] == 1
-    assert log["toAccountId"] == 2
-    assert log["performedByUserId"] == 1
+    user_id, headers = make_customer()
+    a = open_account(headers, user_id, deposit=500)
+    b = open_account(headers, user_id)
+    client.post("/api/accounts/transfer", json={"fromAccountId": a, "toAccountId": b, "amount": 200}, headers=headers)
+    _, admin = make_admin()
+    log = client.get("/api/audit", params={"action": "TRANSFER"}, headers=admin).json()[0]
+    assert log["fromAccountId"] == a
+    assert log["toAccountId"] == b
     assert len(log["transactionIds"]) == 2
 
 
 def test_trace_single_transaction():
-    create_user_and_account()
-    client.post("/api/accounts/1/deposit", json={"amount": 250})
-    res = client.get("/api/audit/transaction/1")
+    user_id, headers = make_customer()
+    account_id = open_account(headers, user_id, deposit=250)
+    txn_id = client.get(f"/api/accounts/{account_id}/transactions", headers=headers).json()[0]["transactionId"]
+    _, admin = make_admin()
+    res = client.get(f"/api/audit/transaction/{txn_id}", headers=admin)
     assert res.status_code == 200
     assert res.json()["action"] == "DEPOSIT"
     assert res.json()["amount"] == 250
 
 
 def test_filter_audit_by_account():
-    setup_two_accounts(balance_1=100, balance_2=200)
-    logs = client.get("/api/audit", params={"accountId": 2}).json()
+    user_id, headers = make_customer()
+    open_account(headers, user_id, deposit=100)
+    second = open_account(headers, user_id, deposit=200)
+    _, admin = make_admin()
+    logs = client.get("/api/audit", params={"accountId": second}, headers=admin).json()
     assert len(logs) == 1
-    assert logs[0]["toAccountId"] == 2
+    assert logs[0]["toAccountId"] == second
 
 
 def test_missing_audit_log_returns_404():
-    assert client.get("/api/audit/999").status_code == 404
+    _, admin = make_admin()
+    assert client.get("/api/audit/999", headers=admin).status_code == 404

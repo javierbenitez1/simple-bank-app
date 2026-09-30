@@ -42,6 +42,7 @@ class AmountRequest(CamelModel):
 
 class UserResponse(CamelModel):
     user_id: int
+    role: str
     name: str
     email: str
     created_at: datetime
@@ -93,3 +94,21 @@ class AuditLogResponse(CamelModel):
     transaction_ids: list[int]
     reason: str | None
     timestamp: datetime
+
+
+# ----- Auth -----
+
+class RegisterRequest(CreateUserRequest):
+    password: str = Field(..., min_length=8, max_length=72)
+
+
+class LoginRequest(CamelModel):
+    email: str
+    password: str = Field(..., max_length=72)
+
+
+class TokenResponse(CamelModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: UserResponse

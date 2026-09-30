@@ -1,8 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.controllers import account_controller, audit_controller, user_controller
-from app.services.exceptions import BusinessRuleError, ConflictError, NotFoundError
+from app.controllers import account_controller, audit_controller, auth_controller, user_controller
+from app.services.exceptions import (
+    BusinessRuleError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnauthorizedError,
+)
 
 app = FastAPI(
     title="Simple Bank API",
@@ -10,6 +16,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
+app.include_router(auth_controller.router)
 app.include_router(user_controller.router)
 app.include_router(account_controller.router)
 app.include_router(audit_controller.router)
@@ -33,3 +40,13 @@ async def handle_conflict(request: Request, exc: ConflictError):
 @app.get("/", tags=["Health"])
 def health_check():
     return {"status": "ok", "message": "Simple Bank API is running. Visit /docs to try it out."}
+
+@app.exception_handler(UnauthorizedError)
+async def handle_unauthorized(request: Request, exc: UnauthorizedError):
+    return JSONResponse(status_code=401, content={"detail": str(exc)},
+                        headers={"WWW-Authenticate": "Bearer"})
+
+
+@app.exception_handler(ForbiddenError)
+async def handle_forbidden(request: Request, exc: ForbiddenError):
+    return JSONResponse(status_code=403, content={"detail": str(exc)})

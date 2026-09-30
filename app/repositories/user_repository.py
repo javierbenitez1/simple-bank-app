@@ -11,6 +11,8 @@ def _to_user(doc) -> User:
         name=doc["name"],
         email=doc["email"],
         created_at=doc["created_at"],
+        password_hash=doc.get("password_hash"),
+        role=doc.get("role", "CUSTOMER"),
     )
 
 
@@ -19,12 +21,15 @@ class UserRepository:
     def collection(self):
         return get_db().users
 
-    def save(self, name: str, email: str) -> User:
-        user = User(user_id=next_id("users"), name=name, email=email)
+    def save(self, name: str, email: str, password_hash: str | None = None, role: str = "CUSTOMER") -> User:
+        user = User(user_id=next_id("users"), name=name, email=email,
+                    password_hash=password_hash, role=role)
         self.collection.insert_one({
             "_id": user.user_id,
             "name": user.name,
             "email": user.email,
+            "password_hash": user.password_hash,
+            "role": user.role,
             "created_at": user.created_at,
         })
         return user

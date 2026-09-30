@@ -1,7 +1,8 @@
 from app.models.entities import User
 from app.repositories.account_repository import AccountRepository
 from app.repositories.user_repository import UserRepository
-from app.services.exceptions import ConflictError, NotFoundError
+from app.security import hash_password, verify_password
+from app.services.exceptions import ConflictError, NotFoundError, UnauthorizedError
 
 
 class UserService:
@@ -9,10 +10,17 @@ class UserService:
         self.user_repo = user_repo
         self.account_repo = account_repo
 
-    def create_user(self, name: str, email: str) -> User:
+    def create_user(self, name: str, email: str, password: str, role: str = "CUSTOMER") -> User:
         if self.user_repo.find_by_email(email):
             raise ConflictError(f"A user with email {email} already exists")
-        return self.user_repo.save(name.strip(), email.strip())
+        return self.user_repo.save(name.strip(), email.strip(), hash_password(password), role)
+
+    def authenticate(self, email: str, password: str) -> User:
+        user = self.user_repo.find_by_email(email)
+        # Same message either way, so attackers can't tell which emails exist
+        if user is None or not verify_password(password, user.password_hash):
+            raise UnauthorizedError("Incorrect email or password")
+        return user
 
     def list_users(self) -> list[User]:
         return self.user_repo.find_all()

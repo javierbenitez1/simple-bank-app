@@ -66,7 +66,7 @@ class AccountService:
 
     # ----- Money movement (audited) -----
 
-    def deposit(self, account_id: int, amount: Decimal) -> Account:
+    def deposit(self, account_id: int, amount: Decimal, actor_id: int | None = None) -> Account:
         try:
             if amount <= 0:
                 raise BusinessRuleError("Deposit amount must be positive")
@@ -76,13 +76,13 @@ class AccountService:
             txn = self.txn_repo.save(account_id, "DEPOSIT", amount)
         except AUDITED_ERRORS as e:
             self.audit.record("DEPOSIT", "FAILED", amount, account_id,
-                              to_account_id=account_id, reason=str(e))
+                              to_account_id=account_id, reason=str(e), actor_id=actor_id)
             raise
         self.audit.record("DEPOSIT", "SUCCESS", amount, account_id,
-                          to_account_id=account_id, transaction_ids=[txn.txn_id])
+                          to_account_id=account_id, transaction_ids=[txn.txn_id], actor_id=actor_id)
         return account
 
-    def withdraw(self, account_id: int, amount: Decimal) -> Account:
+    def withdraw(self, account_id: int, amount: Decimal, actor_id: int | None = None) -> Account:
         try:
             if amount <= 0:
                 raise BusinessRuleError("Withdrawal amount must be positive")
@@ -96,13 +96,15 @@ class AccountService:
             txn = self.txn_repo.save(account_id, "WITHDRAW", amount)
         except AUDITED_ERRORS as e:
             self.audit.record("WITHDRAW", "FAILED", amount, account_id,
-                              from_account_id=account_id, reason=str(e))
+                              from_account_id=account_id, reason=str(e), actor_id=actor_id)
             raise
         self.audit.record("WITHDRAW", "SUCCESS", amount, account_id,
-                          from_account_id=account_id, transaction_ids=[txn.txn_id])
+                          from_account_id=account_id, transaction_ids=[txn.txn_id], actor_id=actor_id)
         return account
 
-    def transfer(self, from_account_id: int, to_account_id: int, amount: Decimal) -> tuple[Account, Account]:
+    def transfer(
+        self, from_account_id: int, to_account_id: int, amount: Decimal, actor_id: int | None = None
+    ) -> tuple[Account, Account]:
         try:
             if amount <= 0:
                 raise BusinessRuleError("Transfer amount must be positive")
@@ -123,11 +125,11 @@ class AccountService:
         except AUDITED_ERRORS as e:
             self.audit.record("TRANSFER", "FAILED", amount, from_account_id,
                               from_account_id=from_account_id, to_account_id=to_account_id,
-                              reason=str(e))
+                              reason=str(e), actor_id=actor_id)
             raise
         self.audit.record("TRANSFER", "SUCCESS", amount, from_account_id,
                           from_account_id=from_account_id, to_account_id=to_account_id,
-                          transaction_ids=[out_txn.txn_id, in_txn.txn_id])
+                          transaction_ids=[out_txn.txn_id, in_txn.txn_id], actor_id=actor_id)
         return source, target
 
     def get_transactions(self, account_id: int) -> list[Transaction]:
