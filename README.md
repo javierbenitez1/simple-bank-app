@@ -11,6 +11,7 @@ A banking REST API built with Python and FastAPI that lets users create accounts
 | 2 | [`backend-with-mongodb`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-mongodb) | MongoDB Atlas | Same API backed by a cloud document database, plus customers CRUD, transfers, premium accounts, and an audit trail |
 | 2 | [`backend-with-jwt`](https://github.com/javierbenitez1/simple-bank-app/tree/backend-with-jwt) | MongoDB Atlas | MongoDB version plus JWT login with username and password, admin and customer roles, a reserved admin username, admin and customer dashboards, and ownership checks so customers can only access their own accounts |
 | 3 | [`frontend-react`](https://github.com/javierbenitez1/simple-bank-app/tree/frontend-react) | MongoDB Atlas | React frontend with Header and Footer components, customers CRUD, search by first name, premium accounts filter, customer accounts view, loading spinners, and all six screens from the spec |
+| 4 | [`fullstack-jwt`](https://github.com/javierbenitez1/simple-bank-app/tree/fullstack-jwt) | MongoDB Atlas | Full stack: React login and registration, role-based dashboards with charts, transfers, fraud monitor, dark mode, account lockout, and CI with GitHub Actions |
 
 Each branch has its own README with setup instructions. The code on `main` matches Stage 1.
 
