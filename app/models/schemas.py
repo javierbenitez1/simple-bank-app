@@ -43,6 +43,7 @@ class AmountRequest(CamelModel):
 class UserResponse(CamelModel):
     user_id: int
     role: str
+    username: str | None = None
     name: str
     email: str
     created_at: datetime
@@ -99,11 +100,12 @@ class AuditLogResponse(CamelModel):
 # ----- Auth -----
 
 class RegisterRequest(CreateUserRequest):
+    username: str = Field(..., min_length=3, max_length=30, pattern=r"^[A-Za-z0-9_.]+$")
     password: str = Field(..., min_length=8, max_length=72)
 
 
 class LoginRequest(CamelModel):
-    email: str
+    username: str = Field(..., description="Your username, or your email")
     password: str = Field(..., max_length=72)
 
 
@@ -112,3 +114,29 @@ class TokenResponse(CamelModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserResponse
+
+
+# ----- Dashboards -----
+
+class AdminDashboardResponse(CamelModel):
+    admin_name: str
+    total_customers: int
+    total_accounts: int
+    total_deposits: float
+    failed_attempts: int
+    recent_activity: list[AuditLogResponse]
+
+
+class DashboardTransactionResponse(CamelModel):
+    transaction_id: int
+    account_id: int
+    type: TransactionType
+    amount: float
+    date: datetime
+
+
+class CustomerDashboardResponse(CamelModel):
+    customer: UserResponse
+    total_balance: float
+    accounts: list[AccountResponse]
+    recent_transactions: list[DashboardTransactionResponse]

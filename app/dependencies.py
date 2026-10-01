@@ -24,3 +24,9 @@ def reset_data():
     transaction_repository.clear()
     account_repository.clear()
     user_repository.clear()
+
+from app.services.dashboard_service import DashboardService  # noqa: E402
+
+dashboard_service = DashboardService(
+    user_repository, account_repository, transaction_repository, audit_repository
+)

@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 @router.post("/login", response_model=TokenResponse)
 def login(request: LoginRequest):
-    user = user_service.authenticate(request.email, request.password)
+    user = user_service.authenticate(request.username, request.password)
     return TokenResponse(
         access_token=create_access_token(user.user_id, user.role),
         expires_in=EXPIRE_MINUTES * 60,

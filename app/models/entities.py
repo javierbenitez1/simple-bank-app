@@ -15,6 +15,7 @@ class User:
     created_at: datetime = field(default_factory=now)
     password_hash: str | None = None
     role: str = "CUSTOMER"
+    username: str | None = None
 
 
 @dataclass

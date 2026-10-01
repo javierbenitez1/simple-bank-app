@@ -19,13 +19,13 @@ def clean_data():
 # ----- Helpers -----
 
 def register(name="Test User", email="test@example.com"):
-    res = client.post("/api/users", json={"name": name, "email": email, "password": PASSWORD})
+    res = client.post("/api/users", json={"name": name, "email": email, "username": email.split("@")[0] + "_user", "password": PASSWORD})
     assert res.status_code == 201
     return res.json()
 
 
 def login(email):
-    res = client.post("/api/auth/login", json={"email": email, "password": PASSWORD})
+    res = client.post("/api/auth/login", json={"username": email, "password": PASSWORD})
     return {"Authorization": f"Bearer {res.json()['accessToken']}"}
 
 
@@ -37,7 +37,7 @@ def make_customer(name="Test User", email="test@example.com"):
 
 def make_admin():
     """Admins can't sign up through the API, so create one directly."""
-    admin = user_service.create_user("Admin", "admin@example.com", PASSWORD, role="ADMIN")
+    admin = user_service.create_user("Admin", "admin@example.com", PASSWORD, role="ADMIN", username="admin")
     return admin.user_id, login("admin@example.com")
 
 
@@ -78,13 +78,13 @@ def test_short_password_rejected():
 
 def test_duplicate_email_returns_409():
     register()
-    res = client.post("/api/users", json={"name": "B", "email": "test@example.com", "password": PASSWORD})
+    res = client.post("/api/users", json={"name": "B", "email": "test@example.com", "username": "b_user", "password": PASSWORD})
     assert res.status_code == 409
 
 
 def test_login_returns_token():
     register()
-    res = client.post("/api/auth/login", json={"email": "test@example.com", "password": PASSWORD})
+    res = client.post("/api/auth/login", json={"username": "test@example.com", "password": PASSWORD})
     assert res.status_code == 200
     body = res.json()
     assert body["tokenType"] == "bearer"
@@ -94,12 +94,12 @@ def test_login_returns_token():
 
 def test_login_wrong_password_returns_401():
     register()
-    res = client.post("/api/auth/login", json={"email": "test@example.com", "password": "wrong-password"})
+    res = client.post("/api/auth/login", json={"username": "test@example.com", "password": "wrong-password"})
     assert res.status_code == 401
 
 
 def test_login_unknown_email_returns_401():
-    res = client.post("/api/auth/login", json={"email": "nobody@example.com", "password": PASSWORD})
+    res = client.post("/api/auth/login", json={"username": "nobody@example.com", "password": PASSWORD})
     assert res.status_code == 401
 
 
@@ -417,3 +417,84 @@ def test_filter_audit_by_account():
 def test_missing_audit_log_returns_404():
     _, admin = make_admin()
     assert client.get("/api/audit/999", headers=admin).status_code == 404
+
+
+# ----- Username login and the reserved "admin" username -----
+
+def test_login_with_username():
+    register()
+    res = client.post("/api/auth/login", json={"username": "test_user", "password": PASSWORD})
+    assert res.status_code == 200
+    assert res.json()["user"]["username"] == "test_user"
+
+
+def test_duplicate_username_returns_409():
+    register()
+    res = client.post("/api/users", json={"name": "B", "email": "b@example.com", "username": "test_user", "password": PASSWORD})
+    assert res.status_code == 409
+
+
+def test_customer_cannot_take_admin_username():
+    res = client.post("/api/users", json={"name": "Sneaky", "email": "sneaky@example.com", "username": "admin", "password": PASSWORD})
+    assert res.status_code == 403
+
+
+def test_admin_username_reserved_in_any_case():
+    res = client.post("/api/users", json={"name": "Sneaky", "email": "sneaky@example.com", "username": "AdMiN", "password": PASSWORD})
+    assert res.status_code == 403
+
+
+def test_admin_logs_in_with_admin_username():
+    make_admin()
+    res = client.post("/api/auth/login", json={"username": "admin", "password": PASSWORD})
+    assert res.status_code == 200
+    assert res.json()["user"]["role"] == "ADMIN"
+
+
+# ----- Dashboards -----
+
+def test_admin_dashboard_works_for_admin():
+    user_id, headers = make_customer()
+    open_account(headers, user_id, deposit=500)
+    _, admin = make_admin()
+    res = client.get("/api/admin", headers=admin)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["totalCustomers"] == 1
+    assert body["totalAccounts"] == 1
+    assert body["totalDeposits"] == 500
+    assert len(body["recentActivity"]) == 1
+
+
+def test_admin_dashboard_forbidden_for_customer():
+    _, headers = make_customer()
+    assert client.get("/api/admin", headers=headers).status_code == 403
+
+
+def test_admin_dashboard_requires_login():
+    assert client.get("/api/admin").status_code == 401
+
+
+def test_customer_can_open_own_dashboard():
+    user_id, headers = make_customer()
+    open_account(headers, user_id, deposit=500)
+    open_account(headers, user_id, "CHECKING", deposit=250)
+    res = client.get(f"/api/customerDashboard/{user_id}", headers=headers)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["customer"]["userId"] == user_id
+    assert body["totalBalance"] == 750
+    assert len(body["accounts"]) == 2
+    assert len(body["recentTransactions"]) == 2
+
+
+def test_customer_cannot_open_someone_elses_dashboard():
+    other_id, _ = make_customer("Other", "other@example.com")
+    _, headers = make_customer()
+    assert client.get(f"/api/customerDashboard/{other_id}", headers=headers).status_code == 403
+
+
+def test_admin_can_open_any_customer_dashboard():
+    user_id, _ = make_customer()
+    _, admin = make_admin()
+    assert client.get(f"/api/customerDashboard/{user_id}", headers=admin).status_code == 200

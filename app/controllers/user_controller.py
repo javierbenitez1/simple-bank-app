@@ -13,6 +13,7 @@ def to_user_response(user) -> UserResponse:
     return UserResponse(
         user_id=user.user_id,
         role=user.role,
+        username=user.username,
         name=user.name,
         email=user.email,
         created_at=user.created_at,
@@ -22,7 +23,7 @@ def to_user_response(user) -> UserResponse:
 @router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def register(request: RegisterRequest):
     """Public: anyone can sign up as a customer."""
-    return to_user_response(user_service.create_user(request.name, request.email, request.password))
+    return to_user_response(user_service.create_user(request.name, request.email, request.password, username=request.username))
 
 
 @router.get("", response_model=list[UserResponse])
