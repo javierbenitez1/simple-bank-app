@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { api, formatMoney } from "../api.js";
+import { api, formatMoney } from "../services/dataService.js";
 
 export default function AmountForm({ mode }) {
   const { id } = useParams();

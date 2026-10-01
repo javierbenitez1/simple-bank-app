@@ -1,6 +1,7 @@
+import Spinner from "../components/Spinner.jsx";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, formatMoney } from "../api.js";
+import { api, formatMoney } from "../services/dataService.js";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -27,7 +28,7 @@ export default function AccountDetails() {
   }
 
   if (!account) {
-    return <div className="card"><p className="muted">Loading account...</p></div>;
+    return <div className="card"><Spinner message="Loading account..." /></div>;
   }
 
   return (

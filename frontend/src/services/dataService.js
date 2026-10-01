@@ -1,3 +1,4 @@
+// Data Service: every call to the backend REST API goes through here
 const API_BASE = "http://127.0.0.1:8000";
 
 async function request(path, options = {}) {
@@ -17,9 +18,7 @@ async function request(path, options = {}) {
   if (!res.ok) {
     let message = "Something went wrong. Please try again.";
     if (data?.detail) {
-      message = Array.isArray(data.detail)
-        ? data.detail.map((d) => d.msg).join(", ")
-        : data.detail;
+      message = Array.isArray(data.detail) ? data.detail.map((d) => d.msg).join(", ") : data.detail;
     }
     const error = new Error(message);
     error.status = res.status;
@@ -29,12 +28,25 @@ async function request(path, options = {}) {
 }
 
 const post = (path, body) => request(path, { method: "POST", body: JSON.stringify(body) });
+const remove = (path) => request(path, { method: "DELETE" });
 
 export const api = {
+  // Customers
+  listCustomers: () => request("/api/users"),
+  getCustomer: (id) => request(`/api/users/${id}`),
+  createCustomer: (name, email) => post("/api/users", { name, email }),
+  deleteCustomer: (id) => remove(`/api/users/${id}`),
+  getCustomerAccounts: (id) => request(`/api/users/${id}/accounts`),
+
+  // Same calls under the names the original pages use
   createUser: (name, email) => post("/api/users", { name, email }),
   listUsers: () => request("/api/users"),
+
+  // Accounts
   createAccount: (userId, accountType) => post("/api/accounts", { userId, accountType }),
   getAccount: (id) => request(`/api/accounts/${id}`),
+  getPremiumAccounts: (threshold) =>
+    request(`/api/accounts/premium?threshold=${encodeURIComponent(threshold)}`),
   deposit: (id, amount) => post(`/api/accounts/${id}/deposit`, { amount }),
   withdraw: (id, amount) => post(`/api/accounts/${id}/withdraw`, { amount }),
   getTransactions: (id) => request(`/api/accounts/${id}/transactions`),

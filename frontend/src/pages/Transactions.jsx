@@ -1,6 +1,7 @@
+import Spinner from "../components/Spinner.jsx";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, formatDate, formatMoney } from "../api.js";
+import { api, formatDate, formatMoney } from "../services/dataService.js";
 
 const LABELS = {
   DEPOSIT: "Deposit",
@@ -25,7 +26,7 @@ export default function Transactions() {
       <p className="muted">Account #{id}</p>
 
       {error && <p className="error">{error}</p>}
-      {!error && !transactions && <p className="muted">Loading transactions...</p>}
+      {!error && !transactions && <Spinner message="Loading transactions..." />}
       {transactions && transactions.length === 0 && (
         <p className="muted">No transactions yet. Make a deposit to get started.</p>
       )}
