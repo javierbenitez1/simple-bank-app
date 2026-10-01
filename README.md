@@ -1,5 +1,7 @@
 # Simple Bank Application: Backend REST API with MongoDB Atlas
 
+[![CI](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml/badge.svg?branch=fullstack-jwt)](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml)
+
 A REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. Data is stored in MongoDB Atlas (cloud).
 
 ## Architecture
@@ -101,3 +103,18 @@ Tests run against a separate `simple_bank_test` database, so real data is never 
 ```bash
 pytest -v
 ```
+
+## Security Hardening
+
+**Account lockout.** Five wrong passwords in a row locks the account for 15 minutes and returns **423 Locked**, even if the next password is correct. A successful login resets the counter. This slows down password guessing attacks.
+
+**Transfer privacy.** When a customer sends money to someone else, the response only shows the recipient's account number and a shortened name (for example "Friend P."), never their balance.
+
+## Continuous Integration
+
+Every push runs GitHub Actions (`.github/workflows/ci.yml`) with two jobs:
+
+1. **Backend tests**: starts a temporary MongoDB and runs the full pytest suite
+2. **Frontend build**: installs the React app and makes sure it builds
+
+The badge at the top of this README shows whether the latest run passed.

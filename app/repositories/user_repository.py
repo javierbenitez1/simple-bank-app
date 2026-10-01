@@ -14,6 +14,8 @@ def _to_user(doc) -> User:
         password_hash=doc.get("password_hash"),
         role=doc.get("role", "CUSTOMER"),
         username=doc.get("username"),
+        failed_login_attempts=doc.get("failed_login_attempts", 0),
+        locked_until=_as_utc(doc.get("locked_until")),
     )
 
 
@@ -79,3 +81,32 @@ class UserRepository:
     def clear(self):
         self.collection.delete_many({})
         reset_counter("users")
+
+    # ----- Login lockout -----
+
+    def record_failed_login(self, user_id: int) -> int:
+        """Adds 1 to the failed login counter and returns the new count."""
+        from pymongo import ReturnDocument
+        doc = self.collection.find_one_and_update(
+            {"_id": user_id},
+            {"$inc": {"failed_login_attempts": 1}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return doc["failed_login_attempts"]
+
+    def lock(self, user_id: int, until) -> None:
+        self.collection.update_one({"_id": user_id}, {"$set": {"locked_until": until}})
+
+    def reset_failed_logins(self, user_id: int) -> None:
+        self.collection.update_one(
+            {"_id": user_id},
+            {"$set": {"failed_login_attempts": 0, "locked_until": None}},
+        )
+
+
+def _as_utc(value):
+    """MongoDB gives back dates without a timezone. They're stored in UTC, so mark them that way."""
+    from datetime import timezone
+    if value is not None and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value

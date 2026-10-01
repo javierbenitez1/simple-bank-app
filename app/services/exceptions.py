@@ -15,3 +15,7 @@ class UnauthorizedError(Exception):
 
 class ForbiddenError(Exception):
     """Logged in, but not allowed to do this."""
+
+
+class AccountLockedError(Exception):
+    """Too many failed logins in a row."""

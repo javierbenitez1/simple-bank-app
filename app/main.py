@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 
 from app.controllers import account_controller, audit_controller, auth_controller, dashboard_controller, user_controller
 from app.services.exceptions import (
+    AccountLockedError,
     BusinessRuleError,
     ConflictError,
     ForbiddenError,
@@ -60,3 +61,8 @@ async def handle_unauthorized(request: Request, exc: UnauthorizedError):
 @app.exception_handler(ForbiddenError)
 async def handle_forbidden(request: Request, exc: ForbiddenError):
     return JSONResponse(status_code=403, content={"detail": str(exc)})
+
+
+@app.exception_handler(AccountLockedError)
+async def handle_locked(request: Request, exc: AccountLockedError):
+    return JSONResponse(status_code=423, content={"detail": str(exc)})

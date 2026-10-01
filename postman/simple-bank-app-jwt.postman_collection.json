@@ -1076,7 +1076,7 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const t = pm.response.json();",
                   "pm.test('Source is 200', () => pm.expect(t.fromAccount.balance).to.eql(200));",
-                  "pm.test('Target is 100', () => pm.expect(t.toAccount.balance).to.eql(100));"
+                  "pm.test('Recipient balance is hidden', () => pm.expect(t.toAccount).to.not.have.property('balance'));"
                 ]
               }
             }

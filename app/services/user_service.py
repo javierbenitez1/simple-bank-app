@@ -1,11 +1,24 @@
+import math
+from datetime import datetime, timedelta, timezone
+
 from app.models.entities import User
 from app.repositories.account_repository import AccountRepository
 from app.repositories.user_repository import UserRepository
 from app.security import hash_password, verify_password
-from app.services.exceptions import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
+from app.services.exceptions import (
+    AccountLockedError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    UnauthorizedError,
+)
 
 # Only the administrator can have these usernames
 RESERVED_USERNAMES = {"admin"}
+
+# Lock an account after this many wrong passwords in a row
+MAX_FAILED_LOGINS = 5
+LOCKOUT_MINUTES = 15
 
 
 class UserService:
@@ -33,9 +46,33 @@ class UserService:
             user = self.user_repo.find_by_email(identifier)
         else:
             user = self.user_repo.find_by_username(identifier)
-        # Same message either way, so attackers can't tell which accounts exist
-        if user is None or not verify_password(password, user.password_hash):
+        if user is None:
             raise UnauthorizedError("Incorrect username or password")
+
+        now = datetime.now(timezone.utc)
+        if user.locked_until:
+            if user.locked_until > now:
+                minutes = math.ceil((user.locked_until - now).total_seconds() / 60)
+                plural = "s" if minutes != 1 else ""
+                raise AccountLockedError(
+                    f"Too many failed login attempts. Try again in {minutes} minute{plural}."
+                )
+            # The lock has expired, so start the count over
+            self.user_repo.reset_failed_logins(user.user_id)
+            user.failed_login_attempts = 0
+
+        if not verify_password(password, user.password_hash):
+            attempts = self.user_repo.record_failed_login(user.user_id)
+            if attempts >= MAX_FAILED_LOGINS:
+                self.user_repo.lock(user.user_id, now + timedelta(minutes=LOCKOUT_MINUTES))
+                raise AccountLockedError(
+                    f"Too many failed login attempts. Your account is locked for {LOCKOUT_MINUTES} minutes."
+                )
+            # Same message either way, so attackers can't tell which accounts exist
+            raise UnauthorizedError("Incorrect username or password")
+
+        if user.failed_login_attempts:
+            self.user_repo.reset_failed_logins(user.user_id)
         return user
 
     def promote_to_admin(self, email: str, password: str) -> User:

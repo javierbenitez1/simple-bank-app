@@ -304,7 +304,7 @@ def test_transfer_between_own_accounts():
     res = client.post("/api/accounts/transfer", json={"fromAccountId": a, "toAccountId": b, "amount": 200}, headers=headers)
     assert res.status_code == 200
     assert res.json()["fromAccount"]["balance"] == 300
-    assert res.json()["toAccount"]["balance"] == 200
+    assert client.get(f"/api/accounts/{b}", headers=headers).json()["balance"] == 200
 
 
 def test_transfer_to_another_customer():
@@ -498,3 +498,55 @@ def test_admin_can_open_any_customer_dashboard():
     user_id, _ = make_customer()
     _, admin = make_admin()
     assert client.get(f"/api/customerDashboard/{user_id}", headers=admin).status_code == 200
+
+
+# ----- Transfer privacy -----
+
+def test_transfer_hides_recipient_balance():
+    user_id, headers = make_customer()
+    mine = open_account(headers, user_id, deposit=500)
+    friend_id, friend = make_customer("Friend Person", "friend@example.com")
+    theirs = open_account(friend, friend_id, deposit=1000)
+    res = client.post("/api/accounts/transfer", json={"fromAccountId": mine, "toAccountId": theirs, "amount": 100}, headers=headers)
+    assert res.status_code == 200
+    recipient = res.json()["toAccount"]
+    assert "balance" not in recipient
+    assert recipient["userName"] == "Friend P."
+
+
+# ----- Account lockout -----
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+
+
+def wrong_login(username="test_user"):
+    return client.post("/api/auth/login", json={"username": username, "password": "wrong-password"})
+
+
+def test_account_locks_after_5_failed_logins():
+    register()
+    for _ in range(4):
+        assert wrong_login().status_code == 401
+    assert wrong_login().status_code == 423
+    # Even the right password is blocked while locked
+    res = client.post("/api/auth/login", json={"username": "test_user", "password": PASSWORD})
+    assert res.status_code == 423
+
+
+def test_successful_login_resets_failed_attempts():
+    register()
+    for _ in range(4):
+        wrong_login()
+    assert client.post("/api/auth/login", json={"username": "test_user", "password": PASSWORD}).status_code == 200
+    for _ in range(4):
+        assert wrong_login().status_code == 401  # counter started over, so no lock yet
+
+
+def test_lock_expires():
+    user = register()
+    for _ in range(5):
+        wrong_login()
+    # Pretend the 15 minutes have passed
+    user_service.user_repo.lock(user["userId"], datetime.now(timezone.utc) - timedelta(minutes=1))
+    res = client.post("/api/auth/login", json={"username": "test_user", "password": PASSWORD})
+    assert res.status_code == 200

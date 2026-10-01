@@ -11,6 +11,7 @@ from app.models.schemas import (
     CreateAccountRequest,
     TransactionResponse,
     TransferRequest,
+    TransferRecipient,
     TransferResponse,
     UpdateAccountRequest,
 )
@@ -27,6 +28,13 @@ def to_account_response(account) -> AccountResponse:
         account_type=account.account_type,
         balance=float(account.balance),
     )
+
+
+def to_recipient(account) -> TransferRecipient:
+    """The sender sees the account number and a shortened name, never the balance."""
+    parts = user_service.get_user(account.user_id).name.split()
+    short_name = parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0]}."
+    return TransferRecipient(account_id=account.account_id, user_name=short_name)
 
 
 def authorize_account(current: User, account_id: int) -> None:
@@ -69,7 +77,7 @@ def transfer(request: TransferRequest, current: User = Depends(get_current_user)
     )
     return TransferResponse(
         from_account=to_account_response(source),
-        to_account=to_account_response(target),
+        to_account=to_recipient(target),
         amount=float(request.amount),
     )
 

@@ -77,9 +77,15 @@ class TransferRequest(CamelModel):
     amount: Decimal = Field(..., max_digits=10, decimal_places=2)
 
 
+class TransferRecipient(CamelModel):
+    """Only what a sender should see about the person receiving money."""
+    account_id: int
+    user_name: str
+
+
 class TransferResponse(CamelModel):
     from_account: AccountResponse
-    to_account: AccountResponse
+    to_account: TransferRecipient
     amount: float
 
 

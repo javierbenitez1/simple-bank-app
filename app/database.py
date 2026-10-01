@@ -11,7 +11,10 @@ load_dotenv()
 @lru_cache
 def get_client() -> MongoClient:
     """Creates one shared connection to MongoDB Atlas."""
-    return MongoClient(os.getenv("MONGODB_URI"), tlsCAFile=certifi.where())
+    uri = os.getenv("MONGODB_URI")
+    # Atlas (mongodb+srv) needs certifi's certificates. A local MongoDB, like the one in CI, doesn't use TLS.
+    options = {"tlsCAFile": certifi.where()} if uri and uri.startswith("mongodb+srv://") else {}
+    return MongoClient(uri, **options)
 
 
 def get_db():
