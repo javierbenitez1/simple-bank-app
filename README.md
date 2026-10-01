@@ -1,4 +1,5 @@
 # Simple Bank Application
+[![CI](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml/badge.svg?branch=fullstack-jwt)](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml)
 
 A banking REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. The project is built in stages, and each stage lives on its own branch.
 
