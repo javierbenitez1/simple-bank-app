@@ -57,7 +57,7 @@ Interactive API docs are available at `/docs` when the server is running.
 
 ## Postman Collection
 
-It works with the in-memory, MySQL, and MongoDB versions. The JWT branch has its own collection that logs in first.
+The [`postman`](postman/) folder has a collection with every endpoint plus error cases (insufficient funds, negative deposit, missing account). Import it into Postman, start the server, and use **Run collection** to test the whole API. It works with the in-memory, MySQL, and MongoDB versions. The JWT branch has its own collection that logs in first.
 
 ## Quick Start (Stage 1)
 
