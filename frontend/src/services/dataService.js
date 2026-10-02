@@ -1,5 +1,6 @@
 // Data Service: every call to the backend REST API goes through here
-const API_BASE = "http://127.0.0.1:8000";
+// Uses the live API when built for AWS, and your local server otherwise
+const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
 const SESSION_KEY = "simpleBankSession";
 
 // ----- Session (token + logged-in user), saved so a refresh keeps you logged in -----

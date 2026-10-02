@@ -1,5 +1,19 @@
 # Simple Bank Application: Backend REST API with MongoDB Atlas
 
+## Live Deployment
+
+- **Frontend:** http://javierbenitez-bank-frontend.s3-website-us-east-1.amazonaws.com
+- **Backend API:** https://ghlr0znt52.execute-api.us-east-1.amazonaws.com
+- **API Docs:** https://ghlr0znt52.execute-api.us-east-1.amazonaws.com/docs
+
+### Deployment Architecture
+
+- React frontend built with Vite and hosted as a static website on Amazon S3
+- FastAPI backend running on AWS Lambda behind API Gateway
+- MongoDB Atlas for the database
+- JWT authentication, with CORS origins configured through the `ALLOWED_ORIGINS` Lambda environment variable
+
+
 [![CI](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml/badge.svg?branch=fullstack-jwt)](https://github.com/javierbenitez1/simple-bank-app/actions/workflows/ci.yml)
 
 A REST API built with Python and FastAPI that lets users create accounts, deposit and withdraw money, and view transaction history. Data is stored in MongoDB Atlas (cloud).
